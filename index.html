@@ -63,6 +63,31 @@
       border-radius: 12px;
       padding: 20px 22px;
     }
+    .module-block {
+      margin-top: 36px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .module-block:first-of-type {
+      margin-top: 20px;
+      border-top: none;
+      padding-top: 0;
+    }
+    .module-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 18px;
+      letter-spacing: -0.02em;
+    }
+    .summary-block {
+      border-top: 2px solid var(--accent-dim);
+      padding-top: 28px;
+      margin-top: 40px;
+    }
+    .summary-block .module-title {
+      color: var(--ok);
+    }
     .fields {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -153,139 +178,323 @@
 <body>
   <div class="wrap">
     <h1>游戏运营数据预估模型</h1>
-    <p class="sub">填写左侧变量，右侧与下方自动计算 DAU、流水、实际收入与 LTV；下方按月表中「日均 DAU」「日均流水」为当月按自然日等权的日均值。</p>
+    <p class="sub">分<strong>官方安卓</strong>、<strong>官方 iOS</strong>、<strong>渠道</strong>三套独立测算（算法相同、参数可分别填写）；底部为<strong>项目汇总</strong>。全局仅统一模拟月数与每月天数。</p>
 
-    <div class="grid">
-      <div class="card">
-        <h2>输入变量</h2>
-        <div class="fields">
-          <label>每日新增登录 <span class="hint">人/天</span>
-            <input type="number" id="dailyNew" value="5000" min="0" step="1" />
-          </label>
-          <label>新增成本（单价） <span class="hint">元/新增，用于 ROAS 参考</span>
-            <input type="number" id="cpi" value="80" min="0" step="0.01" />
-          </label>
-          <label>ARPU <span class="hint">元/人/天（活跃用户的日均流水贡献）</span>
-            <input type="number" id="arpu" value="3" min="0" step="0.01" />
-          </label>
-          <label>渠道分成 <span class="hint">0–1，如 0.3 表示平台抽 30%</span>
-            <input type="number" id="channelCut" value="0.3" min="0" max="1" step="0.01" />
-          </label>
-          <label>次留（D1） <span class="hint">绝对值 %</span>
-            <input type="number" id="r1" value="40" min="0" max="100" step="0.1" />
-          </label>
-          <label>D1→3 相对次留 <span class="hint">%（例 75 → 3日留存 = 次留×75%）</span>
-            <input type="number" id="dec3" value="75" min="0" max="100" step="0.1" />
-          </label>
-          <label>D1→7 相对次留 <span class="hint">%（周留 = 次留×该比例）</span>
-            <input type="number" id="dec7" value="45" min="0" max="100" step="0.1" />
-          </label>
-          <label>D1→30 相对次留 <span class="hint">%（月留）</span>
-            <input type="number" id="dec30" value="20" min="0" max="100" step="0.1" />
-          </label>
-          <label>D1→60 相对次留 <span class="hint">%（双月留）</span>
-            <input type="number" id="dec60" value="12.5" min="0" max="100" step="0.1" />
-          </label>
-          <label>D1→90 相对次留 <span class="hint">%（三月留）</span>
-            <input type="number" id="dec90" value="8.75" min="0" max="100" step="0.1" />
-          </label>
-          <label>模拟月数 <span class="hint">用于 DAU 爬坡与按月统计表</span>
-            <input type="number" id="months" value="12" min="1" max="36" step="1" />
-          </label>
-          <label>每月天数 <span class="hint">默认 30</span>
-            <input type="number" id="daysPerMonth" value="30" min="28" max="31" step="1" />
-          </label>
+    <div class="card" style="margin-bottom:20px">
+      <h2>全局设置（三模块共用）</h2>
+      <div class="fields" style="max-width:480px">
+        <label>模拟月数 <span class="hint">用于 DAU 爬坡与按月统计表</span>
+          <input type="number" id="months" value="12" min="1" max="36" step="1" />
+        </label>
+        <label>每月天数 <span class="hint">默认 30</span>
+          <input type="number" id="daysPerMonth" value="30" min="28" max="31" step="1" />
+        </label>
+      </div>
+      <details class="formula">
+        <summary>指标定义与计算公式（各模块相同）</summary>
+        <pre>【分模块】官方安卓 / 官方 iOS / 渠道各自一套输入，按同一套公式独立计算 DAU、流水、实际收入、LTV、按月表。
+
+【留存曲线】
+  次留（D1）为绝对 %；D3、D7、D30、D60、D90 = 次留 × 对应「相对次留%」。关键帧之间对数空间线性插值；D90 后按 D60→D90 斜率外推；节点单调压平。
+
+【DAU】第 t 天 DAU(t) = Σ_{d=0}^{t−1} N×R(d)。稳态 DAU ≈ N×Σ R(d)。
+
+【流水】日流水 = DAU×ARPU。【实际收入】= 流水×(1−渠道分成)。
+
+【LTV】LTV(Dn) = ARPU × Σ_{k=0}^{n−1} R(k)（累计流水，未扣渠道）。
+
+【按月表】日均新增=N；月新增=N×天数；日均 DAU、日均流水为当月日均；月流水、月实际收入为当月合计；月营销费用=月新增×单价；月毛利=月实际收入−月营销费用。
+
+【项目汇总】
+  稳态 DAU、稳态日均/月流水、按月表中「可加总」指标 = 三模块对应值相加。
+  汇总 LTV（各周期）= 按各模块「日均新增 N」加权平均：Σ(N_i×LTV_i)/Σ(N_i)（LTV 为各模块同周期累计流水口径）。</pre>
+      </details>
+    </div>
+
+    <!-- 官方安卓 -->
+    <section class="module-block" aria-labelledby="title-andr">
+      <h2 class="module-title" id="title-andr">官方安卓</h2>
+      <div class="grid">
+        <div class="card">
+          <h2>输入变量</h2>
+          <div class="fields">
+            <label>每日新增登录 <span class="hint">人/天</span>
+              <input type="number" id="dailyNew-andr" value="6000" min="0" step="1" />
+            </label>
+            <label>新增成本（单价） <span class="hint">元/新增</span>
+              <input type="number" id="cpi-andr" value="35" min="0" step="0.01" />
+            </label>
+            <label>ARPU <span class="hint">元/人/天</span>
+              <input type="number" id="arpu-andr" value="6" min="0" step="0.01" />
+            </label>
+            <label>渠道分成 <span class="hint">0–1</span>
+              <input type="number" id="channelCut-andr" value="0" min="0" max="1" step="0.01" />
+            </label>
+            <label>次留（D1） <span class="hint">%</span>
+              <input type="number" id="r1-andr" value="40" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→3 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec3-andr" value="70" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→7 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec7-andr" value="45" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→30 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec30-andr" value="15" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→60 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec60-andr" value="6" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→90 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec90-andr" value="3" min="0" max="100" step="0.1" />
+            </label>
+          </div>
         </div>
-
-        <details class="formula">
-          <summary>指标定义与计算公式</summary>
-          <pre>【留存曲线】
-  仅「次留（D1）」填绝对留存 %；D3、D7、D30、D60、D90 均由「相对次留」比例自动换算：
-  R(Dn) = R(D1) × (Dn 相对次留 ÷ 100)。例：次留 50%，D1→3 相对次留 75% → 3日留存 = 50%×75% = 37.5%。
-  关键帧：D0=100%，D1，D3，D7，D30，D60，D90。相邻帧之间在「对数空间」线性插值：
-  ln R(d) = ln R(d_a) + (ln R(d_b) − ln R(d_a)) × (d − d_a) / (d_b − d_a)
-  D90 之后沿用 D60→D90 的对数斜率外推；若相对比例导致节点非递减，会按 RPG 习惯压平为单调递减。
-
-【DAU】
-  设第 t 天新增登录为 N（当前模型为常数）， cohort 在满 d 天时的留存比例为 R(d)（D0 当天算 R(0)=1）。
-  第 t 天 DAU(t) = Σ_{d=0}^{t−1} N × R(d)  （上线未满 t 天时按实际 cohort 天数截断）
-  稳态近似：DAU ≈ N × Σ_{d=0}^∞ R(d)（用截断求和代替无穷）
-
-【流水】
-  日流水(t) = DAU(t) × ARPU
-
-【实际收入】
-  实际收入(t) = 流水(t) × (1 − 渠道分成)
-
-【LTV（累计流水，未扣渠道）】
-  以「单用户从注册日起」在窗口内的累计流水：
-  LTV(Dn) = ARPU × Σ_{k=0}^{n−1} R(k)
-  例如：LTV(D1) = ARPU×R(0)；LTV(D7) = ARPU×(R(0)+…+R(6))。
-
-【按月统计表】
-  日均新增 = 每日新增登录 N；月新增 = N × 当月天数。
-  日均 DAU = (当月每日 DAU 之和) / (当月天数)。
-  日均流水 = (当月每日流水之和) / (当月天数)；月流水 = 当月每日流水之和。
-  月实际收入 = 当月每日实际收入之和（每日实际收入 = 当日流水 × (1−渠道分成)）。
-  月营销费用 = 月新增 × 单用户成本；月毛利 = 月实际收入 − 月营销费用。
-
-【可选：获客与 LTV 对比】
-  单日新增总成本 = 每日新增登录 × 新增成本单价；可与 LTV×(1−渠道分成) 对比回收。</pre>
-        </details>
+        <div class="card">
+          <h2>测算结果</h2>
+          <div class="kpi-row" id="kpiStable-andr"></div>
+          <h2 style="margin-top:8px">LTV（累计流水，元）</h2>
+          <table>
+            <thead><tr><th>周期</th><th>LTV</th><th>说明</th></tr></thead>
+            <tbody id="ltvBody-andr"></tbody>
+          </table>
+          <h2 style="margin-top:16px">推算关键留存</h2>
+          <table>
+            <thead><tr><th>节点</th><th>留存 %</th><th>说明</th></tr></thead>
+            <tbody id="keyRetBody-andr"></tbody>
+          </table>
+          <p class="note" id="retentionNote-andr"></p>
+          <p class="warn-text" id="monoWarn-andr" style="display:none"></p>
+        </div>
       </div>
+      <div class="card" style="margin-top:20px">
+        <h2>按月统计</h2>
+        <p class="note">口径与公式说明见顶部「全局设置」折叠区。</p>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>月份</th>
+                <th>日均新增</th>
+                <th>月新增</th>
+                <th>日均 DAU</th>
+                <th>日均流水</th>
+                <th>月流水</th>
+                <th>月实际收入</th>
+                <th>月营销费用</th>
+                <th>月毛利</th>
+              </tr>
+            </thead>
+            <tbody id="monthBody-andr"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
+    <!-- 官方 iOS -->
+    <section class="module-block" aria-labelledby="title-ios">
+      <h2 class="module-title" id="title-ios">官方 iOS</h2>
+      <div class="grid">
+        <div class="card">
+          <h2>输入变量</h2>
+          <div class="fields">
+            <label>每日新增登录 <span class="hint">人/天</span>
+              <input type="number" id="dailyNew-ios" value="3000" min="0" step="1" />
+            </label>
+            <label>新增成本（单价） <span class="hint">元/新增</span>
+              <input type="number" id="cpi-ios" value="40" min="0" step="0.01" />
+            </label>
+            <label>ARPU <span class="hint">元/人/天</span>
+              <input type="number" id="arpu-ios" value="8.5" min="0" step="0.01" />
+            </label>
+            <label>渠道分成 <span class="hint">0–1</span>
+              <input type="number" id="channelCut-ios" value="0.2" min="0" max="1" step="0.01" />
+            </label>
+            <label>次留（D1） <span class="hint">%</span>
+              <input type="number" id="r1-ios" value="45" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→3 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec3-ios" value="70" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→7 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec7-ios" value="45" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→30 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec30-ios" value="16" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→60 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec60-ios" value="6" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→90 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec90-ios" value="3" min="0" max="100" step="0.1" />
+            </label>
+          </div>
+        </div>
+        <div class="card">
+          <h2>测算结果</h2>
+          <div class="kpi-row" id="kpiStable-ios"></div>
+          <h2 style="margin-top:8px">LTV（累计流水，元）</h2>
+          <table>
+            <thead><tr><th>周期</th><th>LTV</th><th>说明</th></tr></thead>
+            <tbody id="ltvBody-ios"></tbody>
+          </table>
+          <h2 style="margin-top:16px">推算关键留存</h2>
+          <table>
+            <thead><tr><th>节点</th><th>留存 %</th><th>说明</th></tr></thead>
+            <tbody id="keyRetBody-ios"></tbody>
+          </table>
+          <p class="note" id="retentionNote-ios"></p>
+          <p class="warn-text" id="monoWarn-ios" style="display:none"></p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <h2>按月统计</h2>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>月份</th>
+                <th>日均新增</th>
+                <th>月新增</th>
+                <th>日均 DAU</th>
+                <th>日均流水</th>
+                <th>月流水</th>
+                <th>月实际收入</th>
+                <th>月营销费用</th>
+                <th>月毛利</th>
+              </tr>
+            </thead>
+            <tbody id="monthBody-ios"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 渠道 -->
+    <section class="module-block" aria-labelledby="title-ch">
+      <h2 class="module-title" id="title-ch">渠道</h2>
+      <div class="grid">
+        <div class="card">
+          <h2>输入变量</h2>
+          <div class="fields">
+            <label>每日新增登录 <span class="hint">人/天</span>
+              <input type="number" id="dailyNew-ch" value="3000" min="0" step="1" />
+            </label>
+            <label>新增成本（单价） <span class="hint">元/新增</span>
+              <input type="number" id="cpi-ch" value="0" min="0" step="0.01" />
+            </label>
+            <label>ARPU <span class="hint">元/人/天</span>
+              <input type="number" id="arpu-ch" value="4" min="0" step="0.01" />
+            </label>
+            <label>渠道分成 <span class="hint">0–1</span>
+              <input type="number" id="channelCut-ch" value="0.5" min="0" max="1" step="0.01" />
+            </label>
+            <label>次留（D1） <span class="hint">%</span>
+              <input type="number" id="r1-ch" value="35" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→3 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec3-ch" value="70" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→7 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec7-ch" value="40" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→30 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec30-ch" value="16" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→60 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec60-ch" value="8" min="0" max="100" step="0.1" />
+            </label>
+            <label>D1→90 相对次留 <span class="hint">%</span>
+              <input type="number" id="dec90-ch" value="4" min="0" max="100" step="0.1" />
+            </label>
+          </div>
+        </div>
+        <div class="card">
+          <h2>测算结果</h2>
+          <div class="kpi-row" id="kpiStable-ch"></div>
+          <h2 style="margin-top:8px">LTV（累计流水，元）</h2>
+          <table>
+            <thead><tr><th>周期</th><th>LTV</th><th>说明</th></tr></thead>
+            <tbody id="ltvBody-ch"></tbody>
+          </table>
+          <h2 style="margin-top:16px">推算关键留存</h2>
+          <table>
+            <thead><tr><th>节点</th><th>留存 %</th><th>说明</th></tr></thead>
+            <tbody id="keyRetBody-ch"></tbody>
+          </table>
+          <p class="note" id="retentionNote-ch"></p>
+          <p class="warn-text" id="monoWarn-ch" style="display:none"></p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <h2>按月统计</h2>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>月份</th>
+                <th>日均新增</th>
+                <th>月新增</th>
+                <th>日均 DAU</th>
+                <th>日均流水</th>
+                <th>月流水</th>
+                <th>月实际收入</th>
+                <th>月营销费用</th>
+                <th>月毛利</th>
+              </tr>
+            </thead>
+            <tbody id="monthBody-ch"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 项目汇总 -->
+    <section class="module-block summary-block" aria-labelledby="title-sum">
+      <h2 class="module-title" id="title-sum">项目汇总数据预估</h2>
+      <p class="note">稳态 DAU、流水及按月可加总指标 = 三模块相加。LTV 为各模块同周期 LTV 按<strong>日均新增</strong>加权平均（流水口径，未扣渠道）。关键留存、扣渠道后 LTV 仍以各分模块为准。</p>
       <div class="card">
-        <h2>稳态与 LTV 汇总</h2>
-        <div class="kpi-row" id="kpiStable"></div>
-        <h2 style="margin-top:8px">LTV（累计流水，元）</h2>
+        <h2>汇总 · 稳态与 LTV</h2>
+        <div class="kpi-row" id="kpiStable-sum"></div>
+        <h2 style="margin-top:8px">LTV（加权平均，累计流水，元）</h2>
         <table>
-          <thead><tr><th>周期</th><th>LTV</th><th>说明</th></tr></thead>
-          <tbody id="ltvBody"></tbody>
+          <thead><tr><th>周期</th><th>汇总 LTV</th><th>说明</th></tr></thead>
+          <tbody id="ltvBody-sum"></tbody>
         </table>
-        <h2 style="margin-top:16px">推算关键留存</h2>
-        <table>
-          <thead><tr><th>节点</th><th>留存 %</th><th>说明</th></tr></thead>
-          <tbody id="keyRetBody"></tbody>
-        </table>
-        <p class="note" id="retentionNote"></p>
-        <p class="warn-text" id="monoWarn" style="display:none"></p>
+        <p class="note" id="retentionNote-sum"></p>
       </div>
-    </div>
-
-    <div class="card" style="margin-top:20px">
-      <h2>按月统计</h2>
-      <p class="note">日均新增 = 每日新增登录；月新增 = 日均新增 × 当月天数。日均 DAU = 当月每日 DAU 之和 ÷ 天数。日均流水 = 当月每日流水之和 ÷ 天数。月流水、月实际收入为当月合计。月营销费用 = 月新增 × 单用户成本。月毛利 = 月实际收入 − 月营销费用。</p>
-      <div style="overflow-x:auto">
-        <table>
-          <thead>
-            <tr>
-              <th>月份</th>
-              <th>日均新增</th>
-              <th>月新增</th>
-              <th>日均 DAU</th>
-              <th>日均流水</th>
-              <th>月流水</th>
-              <th>月实际收入</th>
-              <th>月营销费用</th>
-              <th>月毛利</th>
-            </tr>
-          </thead>
-          <tbody id="monthBody"></tbody>
-        </table>
+      <div class="card" style="margin-top:20px">
+        <h2>汇总 · 按月统计</h2>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>月份</th>
+                <th>日均新增</th>
+                <th>月新增</th>
+                <th>日均 DAU</th>
+                <th>日均流水</th>
+                <th>月流水</th>
+                <th>月实际收入</th>
+                <th>月营销费用</th>
+                <th>月毛利</th>
+              </tr>
+            </thead>
+            <tbody id="monthBody-sum"></tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 
   <script>
     const R_FLOOR = 0.0005;
+    const MODULE_SUFFIXES = ["-andr", "-ios", "-ch"];
 
     function clamp(x, a, b) {
       return Math.max(a, Math.min(b, x));
     }
 
-    /**
-     * 关键帧 D1→D3→D7→D30→D60→D90 为已换算后的绝对留存（0–1）；中间对数插值；D90 后外推；再单调修正。
-     */
     function buildRetention(pct1, pct3, pct7, pct30, pct60, pct90, maxDay) {
       const pts = [
         { d: 1, v: pct1 / 100 },
@@ -366,59 +575,35 @@
       return x.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function run() {
-      const N = Math.max(0, parseFloat(document.getElementById("dailyNew").value) || 0);
-      const cpi = Math.max(0, parseFloat(document.getElementById("cpi").value) || 0);
-      const arpu = Math.max(0, parseFloat(document.getElementById("arpu").value) || 0);
-      const cut = clamp(parseFloat(document.getElementById("channelCut").value) || 0, 0, 1);
-      const months = Math.max(1, parseInt(document.getElementById("months").value, 10) || 12);
-      const dpm = clamp(parseInt(document.getElementById("daysPerMonth").value, 10) || 30, 28, 31);
+    function val(suffix, baseId, defNum) {
+      const el = document.getElementById(baseId + suffix);
+      if (!el) return defNum;
+      const v = parseFloat(el.value);
+      return Number.isFinite(v) ? v : defNum;
+    }
 
-      const pct1 = clamp(parseFloat(document.getElementById("r1").value) || 0, 0, 100);
-      const m3 = clamp((parseFloat(document.getElementById("dec3").value) || 0) / 100, 0, 1);
-      const m7 = clamp((parseFloat(document.getElementById("dec7").value) || 0) / 100, 0, 1);
-      const m30 = clamp((parseFloat(document.getElementById("dec30").value) || 0) / 100, 0, 1);
-      const m60 = clamp((parseFloat(document.getElementById("dec60").value) || 0) / 100, 0, 1);
-      const m90 = clamp((parseFloat(document.getElementById("dec90").value) || 0) / 100, 0, 1);
+    function computeModule(suffix, months, dpm) {
+      const N = Math.max(0, val(suffix, "dailyNew", 0));
+      const cpi = Math.max(0, val(suffix, "cpi", 0));
+      const arpu = Math.max(0, val(suffix, "arpu", 0));
+      const cut = clamp(val(suffix, "channelCut", 0), 0, 1);
 
-      let pct3 = pct1 * m3;
-      let pct7 = pct1 * m7;
-      let pct30 = pct1 * m30;
-      let pct60 = pct1 * m60;
-      let pct90 = pct1 * m90;
-      pct3 = clamp(pct3, 0, 100);
-      pct7 = clamp(pct7, 0, 100);
-      pct30 = clamp(pct30, 0, 100);
-      pct60 = clamp(pct60, 0, 100);
-      pct90 = clamp(pct90, 0, 100);
+      const pct1 = clamp(val(suffix, "r1", 0), 0, 100);
+      const m3 = clamp(val(suffix, "dec3", 0) / 100, 0, 1);
+      const m7 = clamp(val(suffix, "dec7", 0) / 100, 0, 1);
+      const m30 = clamp(val(suffix, "dec30", 0) / 100, 0, 1);
+      const m60 = clamp(val(suffix, "dec60", 0) / 100, 0, 1);
+      const m90 = clamp(val(suffix, "dec90", 0) / 100, 0, 1);
+
+      let pct3 = clamp(pct1 * m3, 0, 100);
+      let pct7 = clamp(pct1 * m7, 0, 100);
+      let pct30 = clamp(pct1 * m30, 0, 100);
+      let pct60 = clamp(pct1 * m60, 0, 100);
+      let pct90 = clamp(pct1 * m90, 0, 100);
 
       const rawMonoRel = m7 > m3 || m30 > m7 || m60 > m30 || m90 > m60;
       const rawMonoAbs =
         pct7 > pct3 || pct30 > pct7 || pct60 > pct30 || pct90 > pct60;
-      const warnEl = document.getElementById("monoWarn");
-      if (rawMonoRel || rawMonoAbs) {
-        warnEl.style.display = "block";
-        warnEl.textContent =
-          rawMonoRel
-            ? "提示：D1→7、D30… 的「相对次留」应 ≤ 前一节点相对值（周留不应高于 3 日相对次留等）；已用单调压平处理推算结果。"
-            : "提示：推算出的绝对留存未完全递减，已压平；请检查次留与各相对比例。";
-      } else {
-        warnEl.style.display = "none";
-      }
-
-      document.getElementById("keyRetBody").innerHTML = [
-        ["D1（次留）", pct1, "手动填写"],
-        ["D3", pct3, `次留×${(m3 * 100).toFixed(2)}%`],
-        ["D7（周留）", pct7, `次留×${(m7 * 100).toFixed(2)}%`],
-        ["D30（月留）", pct30, `次留×${(m30 * 100).toFixed(2)}%`],
-        ["D60", pct60, `次留×${(m60 * 100).toFixed(2)}%`],
-        ["D90", pct90, `次留×${(m90 * 100).toFixed(2)}%`],
-      ]
-        .map(
-          ([name, p, note]) =>
-            `<tr><td>${name}</td><td>${p.toFixed(2)}%</td><td style="text-align:left;color:var(--muted);font-size:0.82rem">${note}</td></tr>`
-        )
-        .join("");
 
       const totalDays = months * dpm;
       const maxRDay = Math.min(2000, Math.max(totalDays + 400, 400));
@@ -430,27 +615,13 @@
       const steadyDailyFlow = dauSteady * arpu;
       const steadyMonthlyFlow = steadyDailyFlow * dpm;
 
-      const kpi = document.getElementById("kpiStable");
-      kpi.innerHTML = `
-        <div class="kpi"><div class="name">稳态 DAU</div><div class="val">${fmtInt(dauSteady)}</div></div>
-        <div class="kpi"><div class="name">稳态日均流水</div><div class="val">${fmtMoney(steadyDailyFlow)}</div></div>
-        <div class="kpi"><div class="name">稳态月流水</div><div class="val">${fmtMoney(steadyMonthlyFlow)}</div></div>
-      `;
-
       const ltvDays = [1, 7, 14, 30, 60, 90];
-      const ltvBody = document.getElementById("ltvBody");
-      ltvBody.innerHTML = ltvDays
-        .map((n) => {
-          const v = arpu * sumRetention(rArr, 0, n - 1);
-          return `<tr><td>${n} 日</td><td>${fmtMoney(v)}</td><td>ARPU × Σ R(0…${n - 1})</td></tr>`;
-        })
-        .join("");
+      const ltvMap = {};
+      ltvDays.forEach((n) => {
+        ltvMap[n] = arpu * sumRetention(rArr, 0, n - 1);
+      });
 
-      document.getElementById("retentionNote").textContent =
-        `曲线在 D1/D3/D7/D30/D60/D90 间对数插值并外推长尾（共 ${rArr.length - 1} 个日龄节点）。扣渠道后 LTV = 上表 × (1−渠道分成)。`;
-
-      const monthBody = document.getElementById("monthBody");
-      let rows = "";
+      const monthly = [];
       for (let m = 1; m <= months; m++) {
         const start = (m - 1) * dpm;
         const end = m * dpm;
@@ -464,24 +635,188 @@
           sumFlow += f;
           sumNet += f * (1 - cut);
         }
-        const avgDau = sumDau / dpm;
-        const avgFlow = sumFlow / dpm;
         const monthNew = N * dpm;
-        const monthMkt = monthNew * cpi;
-        const monthGrossProfit = sumNet - monthMkt;
+        monthly.push({
+          avgNew: N,
+          monthNew,
+          avgDau: sumDau / dpm,
+          avgFlow: sumFlow / dpm,
+          sumFlow,
+          sumNet,
+          monthMkt: monthNew * cpi,
+          profit: sumNet - monthNew * cpi,
+        });
+      }
+
+      return {
+        N,
+        cpi,
+        arpu,
+        cut,
+        pct1,
+        m3,
+        m7,
+        m30,
+        m60,
+        m90,
+        pct3,
+        pct7,
+        pct30,
+        pct60,
+        pct90,
+        rawMonoRel,
+        rawMonoAbs,
+        rArr,
+        dauSteady,
+        steadyDailyFlow,
+        steadyMonthlyFlow,
+        ltvMap,
+        monthly,
+      };
+    }
+
+    function renderModuleUI(suffix, res) {
+      const warnEl = document.getElementById("monoWarn" + suffix);
+      if (res.rawMonoRel || res.rawMonoAbs) {
+        warnEl.style.display = "block";
+        warnEl.textContent = res.rawMonoRel
+          ? "提示：D1→7、D30… 的「相对次留」应 ≤ 前一节点相对值；已用单调压平处理推算结果。"
+          : "提示：推算出的绝对留存未完全递减，已压平；请检查次留与各相对比例。";
+      } else {
+        warnEl.style.display = "none";
+      }
+
+      document.getElementById("keyRetBody" + suffix).innerHTML = [
+        ["D1（次留）", res.pct1, "手动填写"],
+        ["D3", res.pct3, `次留×${(res.m3 * 100).toFixed(2)}%`],
+        ["D7（周留）", res.pct7, `次留×${(res.m7 * 100).toFixed(2)}%`],
+        ["D30（月留）", res.pct30, `次留×${(res.m30 * 100).toFixed(2)}%`],
+        ["D60", res.pct60, `次留×${(res.m60 * 100).toFixed(2)}%`],
+        ["D90", res.pct90, `次留×${(res.m90 * 100).toFixed(2)}%`],
+      ]
+        .map(
+          ([name, p, note]) =>
+            `<tr><td>${name}</td><td>${p.toFixed(2)}%</td><td style="text-align:left;color:var(--muted);font-size:0.82rem">${note}</td></tr>`
+        )
+        .join("");
+
+      document.getElementById("kpiStable" + suffix).innerHTML = `
+        <div class="kpi"><div class="name">稳态 DAU</div><div class="val">${fmtInt(res.dauSteady)}</div></div>
+        <div class="kpi"><div class="name">稳态日均流水</div><div class="val">${fmtMoney(res.steadyDailyFlow)}</div></div>
+        <div class="kpi"><div class="name">稳态月流水</div><div class="val">${fmtMoney(res.steadyMonthlyFlow)}</div></div>
+      `;
+
+      const ltvDays = [1, 7, 14, 30, 60, 90];
+      document.getElementById("ltvBody" + suffix).innerHTML = ltvDays
+        .map((n) => {
+          const v = res.ltvMap[n];
+          return `<tr><td>${n} 日</td><td>${fmtMoney(v)}</td><td>ARPU × Σ R(0…${n - 1})</td></tr>`;
+        })
+        .join("");
+
+      document.getElementById("retentionNote" + suffix).textContent =
+        `曲线在 D1/D3/D7/D30/D60/D90 间对数插值并外推长尾（共 ${res.rArr.length - 1} 个日龄节点）。扣渠道后 LTV = 上表 × (1−渠道分成)。`;
+
+      let rows = "";
+      for (let mi = 0; mi < res.monthly.length; mi++) {
+        const row = res.monthly[mi];
         rows += `<tr>
-          <td>第 ${m} 月</td>
-          <td>${fmtInt(N)}</td>
+          <td>第 ${mi + 1} 月</td>
+          <td>${fmtInt(row.avgNew)}</td>
+          <td>${fmtInt(row.monthNew)}</td>
+          <td>${fmtInt(row.avgDau)}</td>
+          <td>${fmtMoney(row.avgFlow)}</td>
+          <td>${fmtMoney(row.sumFlow)}</td>
+          <td>${fmtMoney(row.sumNet)}</td>
+          <td>${fmtMoney(row.monthMkt)}</td>
+          <td>${fmtMoney(row.profit)}</td>
+        </tr>`;
+      }
+      document.getElementById("monthBody" + suffix).innerHTML = rows;
+    }
+
+    function run() {
+      const months = Math.max(1, parseInt(document.getElementById("months").value, 10) || 12);
+      const dpm = clamp(parseInt(document.getElementById("daysPerMonth").value, 10) || 30, 28, 31);
+
+      const results = MODULE_SUFFIXES.map((suf) => computeModule(suf, months, dpm));
+      results.forEach((res, i) => renderModuleUI(MODULE_SUFFIXES[i], res));
+
+      const sumDauSteady = results.reduce((a, r) => a + r.dauSteady, 0);
+      const sumSteadyDailyFlow = results.reduce((a, r) => a + r.steadyDailyFlow, 0);
+      const sumSteadyMonthlyFlow = results.reduce((a, r) => a + r.steadyMonthlyFlow, 0);
+
+      const totalN = results.reduce((a, r) => a + r.N, 0);
+      const ltvDays = [1, 7, 14, 30, 60, 90];
+      const ltvWeighted = {};
+      ltvDays.forEach((n) => {
+        if (totalN <= 0) {
+          ltvWeighted[n] = 0;
+        } else {
+          let s = 0;
+          results.forEach((r) => {
+            s += r.N * r.ltvMap[n];
+          });
+          ltvWeighted[n] = s / totalN;
+        }
+      });
+
+      document.getElementById("kpiStable-sum").innerHTML = `
+        <div class="kpi"><div class="name">稳态 DAU（合计）</div><div class="val">${fmtInt(sumDauSteady)}</div></div>
+        <div class="kpi"><div class="name">稳态日均流水（合计）</div><div class="val">${fmtMoney(sumSteadyDailyFlow)}</div></div>
+        <div class="kpi"><div class="name">稳态月流水（合计）</div><div class="val">${fmtMoney(sumSteadyMonthlyFlow)}</div></div>
+      `;
+
+      document.getElementById("ltvBody-sum").innerHTML = ltvDays
+        .map((n) => {
+          const v = ltvWeighted[n];
+          const note =
+            totalN > 0
+              ? `Σ(N_i×LTV_i)/ΣN，N 为日均新增`
+              : "日均新增均为 0 时无加权值";
+          return `<tr><td>${n} 日</td><td>${fmtMoney(v)}</td><td>${note}</td></tr>`;
+        })
+        .join("");
+
+      document.getElementById("retentionNote-sum").textContent =
+        totalN > 0
+          ? `三模块日均新增合计 ${fmtInt(totalN)} 人/天；分项留存与扣渠道 LTV 见上方各模块。`
+          : `请至少在一个模块填写每日新增登录。`;
+
+      let sumRows = "";
+      for (let mi = 0; mi < months; mi++) {
+        let avgNew = 0,
+          monthNew = 0,
+          avgDau = 0,
+          avgFlow = 0,
+          sumFlow = 0,
+          sumNet = 0,
+          mkt = 0,
+          profit = 0;
+        results.forEach((r) => {
+          const row = r.monthly[mi];
+          avgNew += row.avgNew;
+          monthNew += row.monthNew;
+          avgDau += row.avgDau;
+          avgFlow += row.avgFlow;
+          sumFlow += row.sumFlow;
+          sumNet += row.sumNet;
+          mkt += row.monthMkt;
+          profit += row.profit;
+        });
+        sumRows += `<tr>
+          <td>第 ${mi + 1} 月</td>
+          <td>${fmtInt(avgNew)}</td>
           <td>${fmtInt(monthNew)}</td>
           <td>${fmtInt(avgDau)}</td>
           <td>${fmtMoney(avgFlow)}</td>
           <td>${fmtMoney(sumFlow)}</td>
           <td>${fmtMoney(sumNet)}</td>
-          <td>${fmtMoney(monthMkt)}</td>
-          <td>${fmtMoney(monthGrossProfit)}</td>
+          <td>${fmtMoney(mkt)}</td>
+          <td>${fmtMoney(profit)}</td>
         </tr>`;
       }
-      monthBody.innerHTML = rows;
+      document.getElementById("monthBody-sum").innerHTML = sumRows;
     }
 
     document.querySelectorAll("input").forEach((el) => {
